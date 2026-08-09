@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="NetScan — Full-stack network scanner dashboard. Discover hosts, open ports, OS fingerprints, and vulnerability risks on your subnet." />
+  <title>NetScan — Network Scanner Dashboard</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+
+  <!-- Main CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════ NAV ═══ -->
+<nav class="navbar" id="navbar">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo" id="nav-logo">
+      <span class="logo-icon">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <circle cx="14" cy="14" r="13" stroke="url(#lg1)" stroke-width="2"/>
+          <circle cx="14" cy="14" r="8"  stroke="url(#lg1)" stroke-width="1.5" stroke-dasharray="3 2"/>
+          <circle cx="14" cy="14" r="3"  fill="url(#lg1)"/>
+          <circle cx="14" cy="4"  r="1.5" fill="#00d4ff" class="ping-dot"/>
+          <circle cx="24" cy="14" r="1.5" fill="#a78bfa"/>
+          <circle cx="6"  cy="20" r="1.5" fill="#34d399"/>
+          <defs>
+            <linearGradient id="lg1" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#00d4ff"/><stop offset="1" stop-color="#a78bfa"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </span>
+      <span class="logo-text">Net<span class="logo-accent">Scan</span></span>
+    </a>
+
+    <div class="nav-center">
+      <span class="nav-pill" id="tool-status-nmap">
+        <span class="status-dot {% if nmap_ok %}dot-green{% else %}dot-red{% endif %}"></span>
+        nmap {% if nmap_ok %}ready{% else %}missing{% endif %}
+      </span>
+      <span class="nav-pill" id="tool-status-masscan">
+        <span class="status-dot {% if masscan_ok %}dot-green{% else %}dot-yellow{% endif %}"></span>
+        masscan {% if masscan_ok %}ready{% else %}optional{% endif %}
+      </span>
+    </div>
+
+    <div class="nav-actions">
+      <button class="btn btn-ghost btn-sm" id="btn-theme-toggle" title="Toggle theme">
+        <svg id="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg id="icon-sun"  width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- ════════════════════════════════════ AMBIENT BACKGROUND ══ -->
+<div class="ambient" aria-hidden="true">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+  <div class="grid-overlay"></div>
+</div>
+
+<!-- ════════════════════════════════════════════ MAIN ════════ -->
+<main class="main-content" id="main-content">
+
+  <!-- ── HERO ─────────────────────────────────────────────────── -->
+  <section class="hero" id="section-hero">
+    <div class="hero-text">
+      <h1 class="hero-title">Network <span class="gradient-text">Scanner</span> Dashboard</h1>
+      <p class="hero-sub">Discover hosts · Map ports · Detect OS · Score vulnerabilities</p>
+    </div>
+  </section>
+
+  <!-- ── SCANNER CARD ───────────────────────────────────────────── -->
+  <section class="glass-card scan-launcher" id="scan-launcher">
+    <div class="card-header">
+      <h2 class="card-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Launch Scan
+      </h2>
+    </div>
+
+    <div class="scan-form" id="scan-form">
+      <div class="form-row">
+        <div class="form-group" style="flex:2">
+          <label class="form-label" for="input-subnet">Target Subnet</label>
+          <div class="input-with-icon">
+            <svg class="input-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <input
+              type="text"
+              id="input-subnet"
+              class="form-input"
+              placeholder="192.168.1.0/24"
+              value="192.168.1.0/24"
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="select-scan-type">Scan Depth</label>
+          <select id="select-scan-type" class="form-select">
+            <option value="quick" selected>⚡ Quick (top 100)</option>
+            <option value="deep">🔍 Deep (top 1000)</option>
+            <option value="full">🌐 Full (1-65535)</option>
+          </select>
+        </div>
+
+        <div class="form-group form-group-btn">
+          <label class="form-label">&nbsp;</label>
+          <button class="btn btn-primary" id="btn-start-scan">
+            <span class="btn-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            </span>
+            <span id="btn-scan-text">Start Scan</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="progress-container" id="progress-container" style="display:none">
+        <div class="progress-header">
+          <span class="progress-label" id="progress-label">Initializing…</span>
+          <span class="progress-pct" id="progress-pct">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+        </div>
+        <div class="progress-steps" id="progress-steps">
+          <span class="step" id="step-masscan">masscan</span>
+          <span class="step-sep">→</span>
+          <span class="step" id="step-nmap">nmap</span>
+          <span class="step-sep">→</span>
+          <span class="step" id="step-parse">parse</span>
+          <span class="step-sep">→</span>
+          <span class="step" id="step-store">store</span>
+        </div>
+      </div>
+
+      <div class="scan-alert" id="scan-alert" style="display:none"></div>
+    </div>
+
+    <!-- Demo button -->
+    <div class="demo-row">
+      <button class="btn btn-ghost btn-xs" id="btn-demo">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        Load Demo Data
+      </button>
+      <span class="demo-hint">No nmap? Try demo data to preview the dashboard</span>
+    </div>
+  </section>
+
+  <!-- ── STAT CARDS ─────────────────────────────────────────────── -->
+  <section class="stats-grid" id="stats-grid">
+    <div class="stat-card" id="stat-hosts">
+      <div class="stat-icon stat-icon-blue">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </div>
+      <div class="stat-body">
+        <div class="stat-value" id="stat-hosts-val">{{ stats.total_hosts }}</div>
+        <div class="stat-label">Hosts Discovered</div>
+      </div>
+      <div class="stat-trend" id="stat-hosts-trend"></div>
+    </div>
+
+    <div class="stat-card" id="stat-ports">
+      <div class="stat-icon stat-icon-purple">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+      </div>
+      <div class="stat-body">
+        <div class="stat-value" id="stat-ports-val">{{ stats.total_ports }}</div>
+        <div class="stat-label">Open Ports Found</div>
+      </div>
+    </div>
+
+    <div class="stat-card" id="stat-vulns">
+      <div class="stat-icon stat-icon-red">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <div class="stat-body">
+        <div class="stat-value" id="stat-vulns-val">{{ stats.high_risk }}</div>
+        <div class="stat-label">High Risk Hosts</div>
+      </div>
+    </div>
+
+    <div class="stat-card" id="stat-scans">
+      <div class="stat-icon stat-icon-green">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <div class="stat-body">
+        <div class="stat-value" id="stat-scans-val">{{ stats.total_scans }}</div>
+        <div class="stat-label">Total Scans Run</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CHARTS ROW ────────────────────────────────────────────── -->
+  <section class="charts-row" id="charts-row">
+    <div class="glass-card chart-card" id="card-port-chart">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="18" y="3" width="4" height="18"/><rect x="10" y="8" width="4" height="13"/><rect x="2" y="13" width="4" height="8"/></svg>
+          Top Open Ports
+        </h2>
+      </div>
+      <div class="chart-wrap"><canvas id="chart-ports" aria-label="Top open ports bar chart"></canvas></div>
+    </div>
+
+    <div class="glass-card chart-card" id="card-service-chart">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg>
+          Service Distribution
+        </h2>
+      </div>
+      <div class="chart-wrap"><canvas id="chart-services" aria-label="Service distribution doughnut chart"></canvas></div>
+    </div>
+  </section>
+
+  <!-- ── HOST TABLE ────────────────────────────────────────────── -->
+  <section class="glass-card table-section" id="hosts-section">
+    <div class="card-header">
+      <h2 class="card-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        Discovered Hosts
+      </h2>
+      <div class="card-actions">
+        <div class="search-box">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="host-search" class="search-input" placeholder="Filter hosts…" />
+        </div>
+        <select class="form-select form-select-sm" id="risk-filter">
+          <option value="">All Risks</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+        <div class="export-group" id="export-group" style="display:none">
+          <button class="btn btn-ghost btn-xs" id="btn-export-json">JSON</button>
+          <button class="btn btn-ghost btn-xs" id="btn-export-csv">CSV</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-wrapper" id="host-table-wrapper">
+      <table class="data-table" id="host-table">
+        <thead>
+          <tr>
+            <th data-sort="ip">IP Address <span class="sort-icon">↕</span></th>
+            <th>Hostname</th>
+            <th>Status</th>
+            <th>OS</th>
+            <th data-sort="open_ports">Ports <span class="sort-icon">↕</span></th>
+            <th>Services</th>
+            <th data-sort="risk_level">Risk <span class="sort-icon">↕</span></th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="host-tbody">
+          {% if stats.total_hosts == 0 %}
+          <tr class="empty-row" id="empty-row">
+            <td colspan="8">
+              <div class="empty-state">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <p>No hosts discovered yet.<br/>Start a scan or load demo data.</p>
+              </div>
+            </td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── PORT DETAIL PANEL ─────────────────────────────────────── -->
+  <div class="panel-overlay" id="port-panel-overlay" style="display:none"></div>
+  <aside class="port-panel glass-card" id="port-panel" style="display:none">
+    <div class="panel-header">
+      <div>
+        <h3 class="panel-title" id="panel-host-ip">192.168.1.1</h3>
+        <span class="panel-sub" id="panel-host-os">—</span>
+      </div>
+      <button class="btn btn-ghost btn-icon" id="btn-close-panel">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="panel-badges" id="panel-badges"></div>
+
+    <div class="table-wrapper">
+      <table class="data-table data-table-sm" id="port-detail-table">
+        <thead>
+          <tr>
+            <th>Port</th>
+            <th>Proto</th>
+            <th>State</th>
+            <th>Service</th>
+            <th>Product / Version</th>
+            <th>Risk</th>
+          </tr>
+        </thead>
+        <tbody id="port-detail-tbody">
+          <tr><td colspan="6"><div class="loading-dots"><span></span><span></span><span></span></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="cve-section" id="cve-section" style="display:none">
+      <h4 class="cve-title">CVE Findings</h4>
+      <div id="cve-list"></div>
+    </div>
+
+    <div class="panel-footer">
+      <button class="btn btn-ghost btn-xs" id="btn-lookup-cve">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        Lookup CVEs
+      </button>
+    </div>
+  </aside>
+
+  <!-- ── SCAN HISTORY ──────────────────────────────────────────── -->
+  <section class="glass-card" id="history-section">
+    <div class="card-header">
+      <h2 class="card-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Scan History
+      </h2>
+      <button class="btn btn-ghost btn-xs" id="btn-refresh-history">Refresh</button>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="data-table" id="history-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Subnet</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Hosts Up</th>
+            <th>Ports</th>
+            <th>Risk</th>
+            <th>Duration</th>
+            <th>Started</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="history-tbody">
+          {% for scan in scans %}
+          <tr class="history-row" id="history-row-{{ scan.id }}">
+            <td class="mono">#{{ scan.id }}</td>
+            <td class="mono">{{ scan.subnet }}</td>
+            <td><span class="badge badge-type">{{ scan.scan_type }}</span></td>
+            <td>
+              <span class="status-badge status-{{ scan.status }}">
+                <span class="status-dot-sm"></span>{{ scan.status }}
+              </span>
+            </td>
+            <td>{{ scan.hosts_up }}</td>
+            <td>{{ scan.total_ports }}</td>
+            <td>
+              {% if scan.high_risk > 0 %}
+                <span class="risk-badge risk-high">{{ scan.high_risk }} high</span>
+              {% elif scan.medium_risk > 0 %}
+                <span class="risk-badge risk-medium">{{ scan.medium_risk }} med</span>
+              {% else %}
+                <span class="risk-badge risk-low">low</span>
+              {% endif %}
+            </td>
+            <td>{{ scan.duration_seconds()|default('—') }}{% if scan.duration_seconds() %}s{% endif %}</td>
+            <td class="mono text-muted">{{ scan.started_at.strftime('%m/%d %H:%M') if scan.started_at else '—' }}</td>
+            <td>
+              <button class="btn btn-ghost btn-xs btn-load-scan" data-scan-id="{{ scan.id }}">Load</button>
+              <button class="btn btn-ghost btn-xs btn-delete-scan" data-scan-id="{{ scan.id }}">✕</button>
+            </td>
+          </tr>
+          {% else %}
+          <tr id="history-empty"><td colspan="10"><div class="empty-state-sm">No scans yet</div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<!-- ════════════════════════════════════════════════ FOOTER ══ -->
+<footer class="footer">
+  <span>NetScan Dashboard · Built with Flask + nmap + masscan</span>
+  <span class="footer-sep">·</span>
+  <span id="footer-time" class="mono"></span>
+</footer>
+
+<!-- Main JS -->
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
